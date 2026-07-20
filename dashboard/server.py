@@ -22,8 +22,8 @@ from fastapi.staticfiles import StaticFiles
 
 logger = logging.getLogger(__name__)
 
-_CORS_RAW = os.getenv("PBT_CORS_ORIGINS", "http://localhost:8000,http://127.0.0.1:8000")
-CORS_ORIGINS = [o.strip() for o in _CORS_RAW.split(",") if o.strip()] or ["*"]
+_CORS_RAW = os.getenv("PBT_CORS_ORIGINS", "*")
+CORS_ORIGINS = [o.strip() for o in _CORS_RAW.split(",") if o.strip()] if _CORS_RAW != "*" else ["*"]
 
 
 def _get_api_key() -> str:

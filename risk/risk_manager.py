@@ -236,6 +236,8 @@ class RiskManager:
                         f"{pct*100:.2f}% < -{self.config.stop_loss_pct*100:.1f}%",
                 severity="warning",
             ))
+            # Clear entry price so this doesn't re-fire every subsequent step
+            del self._entry_prices[symbol]
             return True, "stop_loss"
 
         if pct > self.config.take_profit_pct:
@@ -246,6 +248,8 @@ class RiskManager:
                         f"{pct*100:.2f}% > {self.config.take_profit_pct*100:.1f}%",
                 severity="warning",
             ))
+            # Clear entry price so this doesn't re-fire every subsequent step
+            del self._entry_prices[symbol]
             return True, "take_profit"
 
         return False, ""

@@ -1,0 +1,32 @@
+# MarketZero — Render Deploy Requirements (slim build, no GPU/ML-tracking deps)
+# Strips torch/mlflow/wandb/tensorboard to prevent OOM on Render's free tier.
+
+# ---- Core web framework ----
+fastapi
+uvicorn[standard]
+websockets
+
+# ---- Environment / config ----
+python-dotenv
+
+# ---- Numerical ----
+numpy
+scipy
+
+# ---- Data & serialisation ----
+pandas
+pyarrow
+
+# ---- HTTP ----
+httpx
+aiohttp
+
+# ---- Logging & monitoring ----
+prometheus-client
+psutil
+
+# ---- Alpaca integration (paper trading) ----
+alpaca-py
+
+# ---- scikit-learn for regime detector ----
+scikit-learn

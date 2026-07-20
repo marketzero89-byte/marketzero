@@ -57,10 +57,11 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
 EXPOSE 8000
 
 # Default: unified engine + dashboard (shared live state)
+# Render injects $PORT; fall back to PBT_PORT / 8000 for local Docker runs.
 CMD ["sh", "-c", "\
     python main.py run \
         --host ${PBT_HOST} \
-        --port ${PBT_PORT} \
+        --port ${PORT:-${PBT_PORT:-8000}} \
         --population ${PBT_POPULATION} \
         --generations ${PBT_GENERATIONS} \
         --broker ${PBT_BROKER} \
