@@ -285,16 +285,24 @@ def _make_evaluate_fn(broker, feature_builder, risk_manager, aggregator, n_steps
             if risk_manager.is_halted:
                 break
 
-            # Stop-loss / take-profit on open positions
-            should_exit, exit_reason = risk_manager.check_stop_take(symbol, price)
-            if should_exit and pos_qty > 0:
-                _submit_order("sell", symbol, int(pos_qty), price, equity)
+            # Stop-loss / take-profit — only check when we actually hold a position
+            if pos_qty > 0:
+                should_exit, exit_reason = risk_manager.check_stop_take(symbol, price)
+                if should_exit:
+                    sold = _submit_order("sell", symbol, int(pos_qty), price, equity)
+                    if sold:
+                        risk_manager.deregister_entry(symbol)
+            else:
+                # No position held — ensure stale entry price is cleared
+                risk_manager.deregister_entry(symbol)
 
             qty = max(1, int(equity * 0.05 / max(price, 1)))
             if action == 1:
                 _submit_order("buy", symbol, qty, price, equity)
             elif action == 2 and pos_qty > 0:
-                _submit_order("sell", symbol, min(qty, int(pos_qty)), price, equity)
+                sold = _submit_order("sell", symbol, min(qty, int(pos_qty)), price, equity)
+                if sold:
+                    risk_manager.deregister_entry(symbol)
 
             new_equity = broker_equity(broker, equity_start)
             prev_equity = local_equity[-1]

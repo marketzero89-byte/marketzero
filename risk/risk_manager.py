@@ -216,6 +216,11 @@ class RiskManager:
         """Record entry price for a symbol (for SL/TP tracking)."""
         self._entry_prices[symbol] = price
 
+    def deregister_entry(self, symbol: str) -> None:
+        """Clear entry price for a symbol after a position is closed.
+        Safe to call even if no entry was recorded (no-op)."""
+        self._entry_prices.pop(symbol, None)
+
     def check_stop_take(
         self, symbol: str, current_price: float
     ) -> tuple[bool, str]:
