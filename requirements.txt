@@ -1,0 +1,53 @@
+# MarketZero Trading Platform — Pinned Requirements
+# Generated for Python 3.11+
+
+# ---- Core web framework ----
+fastapi
+uvicorn[standard]
+websockets
+
+# ---- Environment / config ----
+python-dotenv
+
+# ---- Numerical & ML ----
+numpy
+scipy
+
+# ---- Data & serialisation ----
+pandas
+pyarrow
+
+# ---- HTTP ----
+httpx
+aiohttp
+
+# ---- Testing ----
+pytest
+pytest-asyncio
+pytest-cov
+
+# ---- Logging & monitoring ----
+prometheus-client
+psutil
+
+# ---- Optional: Alpaca integration ----
+alpaca-py
+
+# ---- Optional: ML experiment tracking ----
+mlflow
+wandb
+
+# ---- Optional: PyTorch for GPU acceleration ----
+torch
+torchvision
+
+# ---- Optional: scikit-learn for learned regime detector ----
+scikit-learn
+
+# ---- Optional: TensorBoard ----
+tensorboard
+
+# ---- Dev tools ----
+black
+ruff
+mypy

@@ -1,0 +1,33 @@
+{
+  "title": "PBT Trading Overview",
+  "uid": "pbt-overview",
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Equity",
+      "gridPos": {"h": 4, "w": 6, "x": 0, "y": 0},
+      "targets": [{"expr": "pbt_equity", "legendFormat": "equity"}]
+    },
+    {
+      "type": "stat",
+      "title": "Best Fitness",
+      "gridPos": {"h": 4, "w": 6, "x": 6, "y": 0},
+      "targets": [{"expr": "pbt_fitness", "legendFormat": "fitness"}]
+    },
+    {
+      "type": "stat",
+      "title": "Drawdown",
+      "gridPos": {"h": 4, "w": 6, "x": 12, "y": 0},
+      "targets": [{"expr": "pbt_drawdown", "legendFormat": "drawdown"}]
+    },
+    {
+      "type": "timeseries",
+      "title": "Generation",
+      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 4},
+      "targets": [{"expr": "pbt_generation", "legendFormat": "gen"}]
+    }
+  ]
+}

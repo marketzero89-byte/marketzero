@@ -1,0 +1,125 @@
+version: "3.9"
+
+# PBT Trading Platform — Full Stack Docker Compose
+# Includes: app, Prometheus, Grafana, push gateway
+#
+# Usage:
+#   docker compose up -d
+#   Dashboard: http://localhost:8000
+#   Grafana:   http://localhost:3000  (admin/admin)
+#   Prometheus:http://localhost:9090
+
+services:
+
+  # ----------------------------------------------------------------
+  # PBT Trading App
+  # ----------------------------------------------------------------
+  pbt-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        ALPACA_INTEGRATION: ${ALPACA_INTEGRATION:-0}
+        ML_TRACKING: ${ML_TRACKING:-0}
+    container_name: pbt_app
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      PBT_HOST: 0.0.0.0
+      PBT_PORT: 8000
+      PBT_POPULATION: ${PBT_POPULATION:-12}
+      PBT_GENERATIONS: ${PBT_GENERATIONS:-200}
+      PBT_BROKER: ${PBT_BROKER:-paper}
+      PBT_CAPITAL: ${PBT_CAPITAL:-100000}
+      PBT_API_KEY: ${PBT_API_KEY:-}
+      PBT_CORS_ORIGINS: ${PBT_CORS_ORIGINS:-http://localhost:8000}
+      APCA_API_KEY_ID: ${APCA_API_KEY_ID:-}
+      APCA_API_SECRET_KEY: ${APCA_API_SECRET_KEY:-}
+      ALERT_SLACK_WEBHOOK: ${ALERT_SLACK_WEBHOOK:-}
+      ALERT_EMAIL_FROM: ${ALERT_EMAIL_FROM:-}
+      ALERT_EMAIL_TO: ${ALERT_EMAIL_TO:-}
+      ALERT_SMTP_PASS: ${ALERT_SMTP_PASS:-}
+    volumes:
+      - pbt_checkpoints:/app/checkpoints
+      - pbt_logs:/app/logs
+      - pbt_reports:/app/reports
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    networks:
+      - pbt_net
+
+  # ----------------------------------------------------------------
+  # Prometheus
+  # ----------------------------------------------------------------
+  prometheus:
+    image: prom/prometheus:v2.55.0
+    container_name: pbt_prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=30d"
+      - "--web.enable-lifecycle"
+    networks:
+      - pbt_net
+
+  # ----------------------------------------------------------------
+  # Prometheus Push Gateway (for batch jobs)
+  # ----------------------------------------------------------------
+  pushgateway:
+    image: prom/pushgateway:v1.10.0
+    container_name: pbt_pushgateway
+    restart: unless-stopped
+    ports:
+      - "9091:9091"
+    networks:
+      - pbt_net
+
+  # ----------------------------------------------------------------
+  # Grafana
+  # ----------------------------------------------------------------
+  grafana:
+    image: grafana/grafana:11.3.0
+    container_name: pbt_grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/pbt.json
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    networks:
+      - pbt_net
+    depends_on:
+      - prometheus
+
+# ----------------------------------------------------------------
+# Volumes
+# ----------------------------------------------------------------
+volumes:
+  pbt_checkpoints:
+  pbt_logs:
+  pbt_reports:
+  prometheus_data:
+  grafana_data:
+
+# ----------------------------------------------------------------
+# Networks
+# ----------------------------------------------------------------
+networks:
+  pbt_net:
+    driver: bridge

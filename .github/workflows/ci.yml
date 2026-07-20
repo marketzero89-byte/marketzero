@@ -1,0 +1,177 @@
+name: PBT Trading — CI
+
+on:
+  push:
+    branches: [main, develop, "feature/**"]
+  pull_request:
+    branches: [main, develop]
+  schedule:
+    # Nightly regression at 02:00 UTC
+    - cron: "0 2 * * *"
+
+env:
+  PYTHON_VERSION: "3.11"
+
+jobs:
+  # ----------------------------------------------------------------
+  # Lint & type check
+  # ----------------------------------------------------------------
+  lint:
+    name: Lint & Type Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install linters
+        run: pip install ruff==0.7.4 mypy==1.13.0
+
+      - name: Ruff lint
+        run: ruff check . --select=E,W,F --ignore=E501
+
+      - name: Type check
+        run: mypy core/ agents/ brokers/ risk/ signals/ features/ portfolio/ --ignore-missing-imports
+        continue-on-error: true   # non-blocking for now
+
+  # ----------------------------------------------------------------
+  # Unit tests
+  # ----------------------------------------------------------------
+  test:
+    name: Unit Tests (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ matrix.python-version }}-${{ hashFiles('requirements.txt') }}
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install numpy scipy pandas fastapi uvicorn websockets httpx prometheus-client
+          pip install pytest pytest-asyncio pytest-cov
+
+      - name: Run test suite
+        run: |
+          python -m pytest tests/test_suite.py -v --tb=short \
+            --cov=. --cov-report=xml --cov-report=term-missing
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v4
+        if: matrix.python-version == '3.11'
+        with:
+          file: coverage.xml
+          fail_ci_if_error: false
+
+  # ----------------------------------------------------------------
+  # Integration test: backtest CLI
+  # ----------------------------------------------------------------
+  integration:
+    name: Integration — Backtest CLI
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: pip install numpy scipy pandas fastapi uvicorn websockets httpx prometheus-client
+
+      - name: Run backtest CLI
+        run: |
+          python main.py backtest \
+            --n-bars 500 \
+            --folds 3 \
+            --mc-runs 50 \
+            --output reports/ci_backtest.json
+
+      - name: Verify report output
+        run: |
+          python -c "
+          import json, pathlib
+          report = json.loads(pathlib.Path('reports/ci_backtest.json').read_text())
+          assert 'walk_forward' in report
+          assert 'monte_carlo' in report
+          print('Report OK:', report['walk_forward']['oos_sharpe'])
+          "
+
+      - name: Upload backtest report
+        uses: actions/upload-artifact@v4
+        with:
+          name: backtest-report
+          path: reports/ci_backtest.json
+
+  # ----------------------------------------------------------------
+  # Docker build check
+  # ----------------------------------------------------------------
+  docker:
+    name: Docker Build
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: docker build -t pbt-trading:ci .
+
+      - name: Smoke test container
+        run: |
+          docker run --rm -d -p 8000:8000 --name pbt_ci pbt-trading:ci &
+          sleep 10
+          curl -f http://localhost:8000/api/health || (docker logs pbt_ci && exit 1)
+          docker stop pbt_ci
+
+  # ----------------------------------------------------------------
+  # Nightly: full PBT run (3 generations, paper broker)
+  # ----------------------------------------------------------------
+  nightly:
+    name: Nightly PBT Smoke Test
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule'
+    needs: test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: pip install numpy scipy pandas fastapi uvicorn websockets httpx prometheus-client
+
+      - name: Run 3-generation PBT (paper)
+        run: |
+          timeout 300 python main.py pbt-live \
+            --population 4 \
+            --generations 3 \
+            --steps-per-gen 50 \
+            --broker paper || true
+
+      - name: Check checkpoint created
+        run: |
+          ls checkpoints/gen_*.json 2>/dev/null && echo "Checkpoints OK" || echo "No checkpoints (timeout)"

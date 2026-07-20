@@ -1,0 +1,3 @@
+# configs/ — runtime configuration files (YAML, JSON, TOML)
+# This directory is tracked in git to ensure it exists.
+# Add actual config files here; do not commit sensitive credentials.

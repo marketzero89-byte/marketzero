@@ -1,0 +1,89 @@
+{
+  "data_source": "ohlcv",
+  "data_file": "data\\AAPL_sample.csv",
+  "symbol": "AAPL",
+  "walk_forward": {
+    "n_folds": 5,
+    "oos_sharpe": 0.0,
+    "oos_calmar": 0.0,
+    "oos_annual_ret": 0.0,
+    "oos_max_dd": 0.0,
+    "oos_win_rate": 0.0,
+    "consistency": 0.0,
+    "folds": [
+      {
+        "fold": 0,
+        "sharpe": 0.0,
+        "calmar": 0.0,
+        "annual_return": 0.0,
+        "max_drawdown": 0.0,
+        "win_rate": 0.0,
+        "n_trades": 0,
+        "elapsed": 0.0
+      },
+      {
+        "fold": 1,
+        "sharpe": 0.0,
+        "calmar": 0.0,
+        "annual_return": 0.0,
+        "max_drawdown": 0.0,
+        "win_rate": 0.0,
+        "n_trades": 0,
+        "elapsed": 0.0
+      },
+      {
+        "fold": 2,
+        "sharpe": 0.0,
+        "calmar": 0.0,
+        "annual_return": 0.0,
+        "max_drawdown": 0.0,
+        "win_rate": 0.0,
+        "n_trades": 0,
+        "elapsed": 0.0
+      },
+      {
+        "fold": 3,
+        "sharpe": 0.0,
+        "calmar": 0.0,
+        "annual_return": 0.0,
+        "max_drawdown": 0.0,
+        "win_rate": 0.0,
+        "n_trades": 0,
+        "elapsed": 0.0
+      },
+      {
+        "fold": 4,
+        "sharpe": 0.0,
+        "calmar": 0.0,
+        "annual_return": 0.0,
+        "max_drawdown": 0.0,
+        "win_rate": 0.0,
+        "n_trades": 0,
+        "elapsed": 0.0
+      }
+    ]
+  },
+  "monte_carlo": {
+    "n_runs": 1000,
+    "confidence": 0.95,
+    "sharpe_ci": [
+      0.0,
+      0.0
+    ],
+    "calmar_ci": [
+      0.0,
+      0.0
+    ],
+    "annual_ret_ci": [
+      0.0,
+      0.0
+    ],
+    "max_dd_ci": [
+      0.0,
+      0.0
+    ],
+    "median_sharpe": 0.0,
+    "pct_positive": 0.0
+  },
+  "generated_at": "2026-06-28T20:07:47Z"
+}
