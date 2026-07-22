@@ -108,7 +108,7 @@ def create_app(state_provider=None) -> FastAPI:
     @app.middleware("http")
     async def api_key_middleware(request: Request, call_next):
         path = request.url.path
-        if path in ("/", "/api/health", "/favicon.ico") or path.startswith("/static"):
+        if path in ("/", "/api/health", "/favicon.ico", "/ws") or path.startswith("/static"):
             return await call_next(request)
         if not _check_api_key(request):
             return JSONResponse(status_code=401, content={"detail": "Unauthorized"})
