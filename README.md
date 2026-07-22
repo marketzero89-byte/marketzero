@@ -131,14 +131,14 @@ Open `http://localhost:8000` to view the dashboard.
 To run the full PBT loop with paper data:
 
 ```bash
-python main.py run --broker paper --port 8000 --population 12 --generations 50
+python main.py run --broker paper --generations 100 --population 12 --steps-per-gen 200 --lookback 50
 ```
 
 ### Installation
 
 ```bash
 pip install -r requirements.txt
-pip install alpaca-trade-api                        # live trading
+pip install alpaca-py                                # live trading
 pip install fastapi "uvicorn[standard]" websockets   # dashboard server
 pip install torch                                   # optional for tensorboard/logging
 ```

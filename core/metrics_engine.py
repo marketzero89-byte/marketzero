@@ -11,6 +11,7 @@ from __future__ import annotations
 import math
 import statistics
 import time
+from collections import deque
 from typing import Any, Dict, List, Optional
 
 import numpy as np
@@ -393,19 +394,51 @@ def build_infrastructure_metrics(broker: Any) -> Dict[str, Any]:
     }
 
 
+_PRICE_HISTORY_WINDOW = 20
+_price_history: Dict[str, deque] = {}
+_return_history: deque = deque(maxlen=_PRICE_HISTORY_WINDOW)
+
+
+def _get_price_history(symbol: str) -> deque:
+    hist = _price_history.get(symbol)
+    if hist is None:
+        hist = deque(maxlen=_PRICE_HISTORY_WINDOW)
+        _price_history[symbol] = hist
+    return hist
+
+
 def build_market_intelligence(
     regime: str,
     prices: Dict[str, float],
     positions: Optional[List[Dict[str, Any]]] = None,
 ) -> Dict[str, Any]:
     volatility = 0.0
-    trend = "Neutral"
+    trend_direction = "Neutral"
+    trend_strength = "weak"
+
     if prices:
-        values = list(prices.values())
-        if len(values) >= 2:
-            returns = np.diff(np.array(values, dtype=float)) / np.where(np.array(values[:-1]) != 0, np.array(values[:-1]), 1.0)
-            volatility = float(np.std(returns) * math.sqrt(252))
-            trend = "Bullish" if values[-1] > values[0] else "Bearish"
+        symbol_returns = []
+        for symbol, price in prices.items():
+            hist = _get_price_history(symbol)
+            hist.append(_safe_float(price))
+            if len(hist) >= 2 and hist[0]:
+                symbol_returns.append(hist[-1] / hist[0] - 1.0)
+
+        if symbol_returns:
+            pct_move = float(np.mean(symbol_returns))
+            _return_history.append(pct_move)
+            if len(_return_history) >= 2:
+                volatility = float(np.std(list(_return_history)) * math.sqrt(252))
+
+            trend_direction = "Bullish" if pct_move > 0 else ("Bearish" if pct_move < 0 else "Neutral")
+            magnitude = abs(pct_move)
+            if magnitude > 0.05:
+                trend_strength = "strong"
+            elif magnitude > 0.02:
+                trend_strength = "moderate"
+            else:
+                trend_strength = "weak"
+
     regime_confidence = 0.75 if regime != "UNKNOWN" else 0.0
     dominant_features = ["momentum", "volatility", "liquidity"]
     if positions:
@@ -415,7 +448,8 @@ def build_market_intelligence(
         "current_market_regime": regime,
         "regime_confidence": round(regime_confidence, 4),
         "volatility_state": "high" if volatility > 0.05 else "low",
-        "trend_strength": trend,
+        "trend_direction": trend_direction,
+        "trend_strength": trend_strength,
         "liquidity_state": "stable",
         "time_since_regime_change_sec": None,
         "dominant_market_features": dominant_features,
@@ -528,7 +562,12 @@ def build_ai_evolution_metrics(result: GenerationResult) -> Dict[str, Any]:
     }
 
 
-def build_notifications(result: GenerationResult, broker_state: Dict[str, Any], risk_halted: bool) -> List[Dict[str, Any]]:
+def build_notifications(
+    result: GenerationResult,
+    broker_state: Dict[str, Any],
+    risk_halted: bool,
+    broker: Any = None,
+) -> List[Dict[str, Any]]:
     notifications = [
         {
             "type": "generation",
@@ -543,6 +582,15 @@ def build_notifications(result: GenerationResult, broker_state: Dict[str, Any], 
                 "type": "risk",
                 "title": "Trading Halted",
                 "message": "Risk manager has halted the system.",
+                "timestamp": time.time(),
+            }
+        )
+    if broker is not None and hasattr(broker, "is_connected") and not broker.is_connected():
+        notifications.append(
+            {
+                "type": "alert",
+                "title": "Broker Disconnected",
+                "message": "Broker is not connected — portfolio, positions, and trade data may be stale or unavailable.",
                 "timestamp": time.time(),
             }
         )
@@ -582,7 +630,7 @@ def build_dashboard_state(
     ai_evolution = build_ai_evolution_metrics(result)
     ai_monitoring = build_ai_monitoring(result, broker)
     live_decision_stream = build_live_decision_stream(broker)
-    notifications = build_notifications(result, broker_state, risk_halted=broker_state.get("halted", False))
+    notifications = build_notifications(result, portfolio, risk_halted=broker_state.get("halted", False), broker=broker)
     alerts_events = build_alerts_events(notifications)
     execution = collect_execution_metrics(broker, recent_trades)
     infrastructure = build_infrastructure_metrics(broker)

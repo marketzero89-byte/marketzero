@@ -87,9 +87,10 @@ class GBMPriceSimulator:
         self.sigma = sigma
         self.dt = dt
         self._rng = np.random.default_rng(seed)
-        self._prices: Dict[str, float] = (initial_prices or {}).copy()
+        self._initial_prices: Dict[str, float] = (initial_prices or {}).copy()
         for sym in self.symbols:
-            self._prices.setdefault(sym, 100.0)
+            self._initial_prices.setdefault(sym, 100.0)
+        self._prices: Dict[str, float] = dict(self._initial_prices)
         self._history: Dict[str, List[float]] = {s: [self._prices[s]] for s in self.symbols}
 
     def step(self) -> Dict[str, float]:
@@ -108,6 +109,13 @@ class GBMPriceSimulator:
 
     def current_prices(self) -> Dict[str, float]:
         return dict(self._prices)
+
+    def reset(self) -> None:
+        """Reset prices to initial values. Call between generations to prevent
+        unbounded GBM drift that triggers spurious stop/take-profit alerts."""
+        self._prices = dict(self._initial_prices)
+        self._history = {s: [self._prices[s]] for s in self.symbols}
+        logger.debug("GBM price simulator reset to initial prices")
 
     def price_history(self, symbol: str) -> List[float]:
         return list(self._history.get(symbol, []))
@@ -348,6 +356,22 @@ class PaperBroker:
     def mark_generation_start(self) -> None:
         """Record the trade count at generation start so per-generation counts can be computed."""
         self._trades_at_generation_start = len(self.trades)
+
+    def reset_prices(self) -> None:
+        """Reset the GBM price simulator to initial prices and clear open positions.
+        Call at the start of each generation to prevent unbounded price drift
+        that causes phantom 100%+ take-profit alerts."""
+        self.simulator.reset()
+        self._current_prices = self.simulator.current_prices()
+        # Clear all open positions so agents start fresh each generation
+        for sym in self.positions:
+            pos = self.positions[sym]
+            pos.qty = 0.0
+            pos.avg_cost = 0.0
+            pos.unrealised_pnl = 0.0
+        # Clear pending orders (filled/realised trades are kept for history)
+        self.orders = [o for o in self.orders if o.status == "filled"]
+        logger.info("PaperBroker: prices and positions reset for new generation")
 
     def per_generation_trades(self) -> int:
         return max(0, len(self.trades) - self._trades_at_generation_start)

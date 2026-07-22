@@ -9,7 +9,7 @@ services:
     buildCommand: pip install -r requirements-render.txt
 
     # Start command — Render injects PORT automatically
-    startCommand: python main.py run --host 0.0.0.0 --port $PORT --broker paper --population 6 --generations 9999
+    startCommand: python main.py run --host 0.0.0.0 --port $PORT --broker paper --generations 100 --population 12 --steps-per-gen 200 --lookback 50
 
     healthCheckPath: /api/health
 
@@ -18,10 +18,14 @@ services:
         value: "1"
       - key: PBT_BROKER
         value: paper
-      - key: PBT_POPULATION
-        value: "6"
       - key: PBT_GENERATIONS
-        value: "9999"
+        value: "100"
+      - key: PBT_POPULATION
+        value: "12"
+      - key: PBT_STEPS_PER_GEN
+        value: "200"
+      - key: PBT_LOOKBACK
+        value: "50"
       # Set PBT_CORS_ORIGINS in Render dashboard → Environment to your deploy URL
       # e.g.  https://marketzero-pbt.onrender.com
       # Leave blank to allow all origins (default).

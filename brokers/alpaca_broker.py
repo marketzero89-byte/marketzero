@@ -352,6 +352,7 @@ class AlpacaBroker:
             account = self._trading.get_account()
             positions = self._trading.get_all_positions()
             equity = float(account.equity)
+            last_equity = float(account.last_equity)
             self.cash = float(account.cash)
             pos_map = {}
             for p in positions:
@@ -367,12 +368,14 @@ class AlpacaBroker:
                     "avg_cost":       round(float(p.avg_entry_price), 4),
                     "current_price":  round(price, 4),
                     "unrealised_pnl": round(float(p.unrealized_pl), 2),
+                    "realised_pnl":   round(float(getattr(p, 'realized_pl', 0) or 0), 2),
                 }
             return {
                 "cash":             round(self.cash, 2),
                 "equity":           round(equity, 2),
                 "buying_power":     round(float(account.buying_power), 2),
-                "total_return_pct": round((equity / float(account.last_equity) - 1) * 100, 4),
+                "total_return_pct": round((equity / last_equity - 1) * 100, 4) if last_equity else 0.0,
+                "daily_pnl":        round(equity - last_equity, 2),
                 "positions":        pos_map,
                 "prices":           {k: round(v, 4) for k, v in self._current_prices.items()},
                 "n_trades":         len(self.trades),

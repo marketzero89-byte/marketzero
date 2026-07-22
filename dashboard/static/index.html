@@ -1439,17 +1439,6 @@
       document.getElementById('agent-lb-badge').textContent = `${activeCount} active, ${openCount} open`;
     }
 
-    function updateInstitutionalPanels(data) {
-      renderSummary('portfolio-analytics', [
-        { label: 'Total Value', value: `$${(data.portfolio_value || 0).toFixed(2)}` },
-        { label: 'Net Exposure', value: `${(data.net_exposure_pct || 0).toFixed(2)}%` },
-        { label: 'Cash', value: `$${(data.cash || 0).toFixed(2)}` },
-        { label: 'Margin Used', value: `${(data.margin_used_pct || 0).toFixed(2)}%` },
-        { label: 'Leverage', value: `${(data.leverage || 0).toFixed(2)}` },
-        { label: 'Position Count', value: data.position_count || 0 },
-      ]);
-    }
-
     function updateLeaderboard(lb) {
       lastLeaderboard = lb || [];
       refreshLeaderboard(lastLeaderboard, 'leaderboard-body', LB_DISPLAY);
@@ -1597,17 +1586,14 @@
 
     function updateRetailPanels(data) {
       renderSummary('retail-portfolio-summary', [
-        { label: 'Equity', value: `$${(data.equity || 0).toLocaleString()}` },
         { label: 'Cash', value: `$${(data.cash || 0).toLocaleString()}` },
         { label: 'Buying Power', value: `$${(data.buying_power || 0).toLocaleString()}` },
-        { label: 'Total Return', value: `${(data.total_return_pct || 0).toFixed(2)}%` },
         { label: 'Unrealized P/L', value: `$${(data.unrealized_pnl || 0).toFixed(2)}` },
         { label: 'Realized P/L', value: `$${(data.realized_pnl || 0).toFixed(2)}` },
       ]);
 
       renderSummary('equity-performance-summary', [
         { label: 'Annualized Return', value: `${(data.performance?.annual_return_pct || 0).toFixed(2)}%` },
-        { label: 'Total Return', value: `${(data.performance?.total_return_pct || 0).toFixed(2)}%` },
         { label: 'Daily Return', value: `${(data.performance?.daily_return_pct || 0).toFixed(2)}%` },
         { label: 'Weekly Return', value: `${(data.performance?.weekly_return_pct || 0).toFixed(2)}%` },
         { label: 'Monthly Return', value: `${(data.performance?.monthly_return_pct || 0).toFixed(2)}%` },
@@ -1649,7 +1635,6 @@
 
       renderSummary('portfolio-analytics', [
         { label: 'AUM', value: `$${((data.portfolio_analytics?.aum ?? data.equity) || 0).toLocaleString()}` },
-        { label: 'Equity', value: `$${((data.portfolio_analytics?.equity ?? data.equity) || 0).toLocaleString()}` },
         { label: 'Cash', value: `$${((data.portfolio_analytics?.cash ?? data.cash) || 0).toLocaleString()}` },
         { label: 'Gross Exposure', value: `$${grossExposure.toLocaleString()}` },
         { label: 'Net Exposure', value: `$${netExposure.toLocaleString()}` },
@@ -1667,7 +1652,6 @@
 
       renderSummary('risk-analytics', [
         { label: 'Max Drawdown', value: `${(data.risk?.max_drawdown_pct || 0).toFixed(2)}%` },
-        { label: 'Current Drawdown', value: `${(data.risk?.current_drawdown_pct || 0).toFixed(2)}%` },
         { label: 'VaR', value: `${(data.risk?.var || 0).toFixed(4)}` },
         { label: 'CVaR', value: `${(data.risk?.cvar || 0).toFixed(4)}` },
         { label: 'Recovery Factor', value: (data.risk?.recovery_factor || 0).toFixed(2) },
@@ -1675,12 +1659,9 @@
       ]);
 
       renderSummary('ai-evolution-summary', [
-        { label: 'Generation', value: data.ai_evolution?.current_generation || 0 },
         { label: 'Population', value: data.ai_evolution?.population_size || 0 },
         { label: 'Active Agents', value: data.ai_evolution?.active_agents || 0 },
         { label: 'Elite Agents', value: data.ai_evolution?.elite_agents || 0 },
-        { label: 'Best Fitness', value: (data.ai_evolution?.best_fitness || 0).toFixed(4) },
-        { label: 'Average Fitness', value: (data.ai_evolution?.average_fitness || 0).toFixed(4) },
       ]);
 
       renderSummary('fitness-summary', [
@@ -1700,9 +1681,9 @@
 
       document.getElementById('agent-lb-badge').textContent = `${(data.agent_leaderboard || []).length} agents`;
       renderSummary('market-intelligence', [
-        { label: 'Market Regime', value: data.market_intelligence?.current_market_regime || 'UNKNOWN' },
         { label: 'Regime Confidence', value: `${(data.market_intelligence?.regime_confidence || 0).toFixed(2)}` },
         { label: 'Volatility State', value: data.market_intelligence?.volatility_state || 'N/A' },
+        { label: 'Trend Direction', value: data.market_intelligence?.trend_direction || 'N/A' },
         { label: 'Trend Strength', value: data.market_intelligence?.trend_strength || 'N/A' },
         { label: 'Liquidity State', value: data.market_intelligence?.liquidity_state || 'N/A' },
         { label: 'Dominant Features', value: (data.market_intelligence?.dominant_market_features || []).join(', ') || 'N/A' },

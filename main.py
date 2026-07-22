@@ -481,12 +481,14 @@ def cmd_run(args):
 
     engine.add_callback(on_generation)
 
-    # Reset daily P&L and equity curve at the start of each generation
+    # Reset daily P&L, equity curve, and GBM prices at the start of each generation
     def _generation_start_hook():
         broker.reset_daily_pnl()
         broker.reset_equity_curve()
         if hasattr(broker, 'mark_generation_start'):
             broker.mark_generation_start()
+        if hasattr(broker, 'reset_prices'):
+            broker.reset_prices()   # Resets GBM to initial prices — kills phantom take-profit cascade
 
     if hasattr(broker, 'reset_daily_pnl'):
         engine.set_generation_start_hook(_generation_start_hook)

@@ -70,14 +70,9 @@ def _check_api_key(request: Request) -> bool:
 
 
 def _ws_api_key_ok(websocket: WebSocket) -> bool:
-    api_key = _get_api_key()
-    if not api_key:
-        return True
-    if _is_local_request(websocket):
-        return True
-    if websocket.query_params.get("api_key") == api_key:
-        return True
-    return False
+    """WebSocket is served from the same origin as the dashboard HTML.
+    No API key required — auth is only enforced on REST endpoints below."""
+    return True
 
 # ---------------------------------------------------------------------------
 # App factory
