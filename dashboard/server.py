@@ -327,8 +327,15 @@ def _mock_provider() -> Dict:
         "realized_pnl":   round(random.gauss(150, 80), 2),
         "drawdown":      round(max(0, -random.gauss(0.02, 0.01)), 4),
         "regime":        ["BULL", "BEAR", "RANGING", "HIGH_VOL"][t % 4],
+        "broker":        "MockBroker",
+        "broker_mode":   "mock",
         "halted":        False,
         "n_trades":      t * 3,
+        "portfolio": {
+            "paper": true,
+            "connected": true,
+            "broker": "MockBroker",
+        },
         "leaderboard": [
             {"rank": i+1, "agent_id": f"a{i:03d}",
              "agent_type": ["ppo","dreamer","worldmodel"][i % 3],

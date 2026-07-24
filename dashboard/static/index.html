@@ -1577,9 +1577,32 @@
     function updateBrokerChip(data) {
       const chip = document.getElementById('broker-chip');
       if (!chip) return;
-      const brokerMode = data?.portfolio?.paper === false ? 'ALPACA LIVE' : (data?.portfolio?.paper === true ? 'ALPACA PAPER' : (data?.broker || 'BROKER: UNKNOWN'));
+
+      let brokerMode = 'UNKNOWN';
+      if (typeof data?.broker_mode === 'string') {
+        switch (data.broker_mode.toLowerCase()) {
+          case 'alpaca':
+            brokerMode = data?.portfolio?.paper === false ? 'ALPACA LIVE' : 'ALPACA PAPER';
+            break;
+          case 'paper':
+            brokerMode = 'PAPER';
+            break;
+          case 'mock':
+            brokerMode = 'MOCK';
+            break;
+          default:
+            brokerMode = data.broker_mode.toUpperCase();
+        }
+      } else if (data?.portfolio?.paper === false) {
+        brokerMode = 'ALPACA LIVE';
+      } else if (data?.portfolio?.paper === true) {
+        brokerMode = 'ALPACA PAPER';
+      } else if (data?.broker) {
+        brokerMode = data.broker.replace(/Broker$/i, '').toUpperCase();
+      }
+
       chip.textContent = `BROKER: ${brokerMode}`;
-      chip.className = `regime-pill ${brokerMode.includes('ALPACA') ? 'regime-BULL' : 'regime-UNKNOWN'}`;
+      chip.className = `regime-pill ${brokerMode.includes('ALPACA') ? 'regime-BULL' : brokerMode === 'MOCK' || brokerMode === 'PAPER' ? 'regime-RANGING' : 'regime-UNKNOWN'}`;
     }
 
     function renderSummary(containerId, items) {
@@ -1764,6 +1787,7 @@
         updateTradeFeed(data.recent_trades);
         updateRetailPanels(data);
         updateInstitutionalPanels(data);
+        updateBrokerChip(data);
 
         if (data.regime) updateRegime(data.regime);
         document.getElementById('gen-label').textContent = 'GEN ' + (Number.isInteger(data.generation) ? data.generation : 0);
