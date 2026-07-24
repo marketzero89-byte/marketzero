@@ -8,7 +8,8 @@ services:
     # Use slim requirements to avoid OOM on free tier
     buildCommand: pip install -r requirements-render.txt
 
-    # Start command — Render injects PORT automatically and the app must bind to it
+    # Start command — Render injects PORT automatically and the app must bind to it.
+    # Broker selection is taken from the CLI here so the Render YAML is authoritative.
     startCommand: python main.py run --broker alpaca --generations 100 --population 12 --steps-per-gen 200 --lookback 50 --port ${PORT:-8000}
 
     healthCheckPath: /api/health
