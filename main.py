@@ -530,6 +530,15 @@ def cmd_run(args):
             positions=positions,
             regime=best.metrics.get('regime', 'UNKNOWN'),
         )
+        state['broker'] = getattr(broker, '__class__', type(broker)).__name__
+        state['broker_mode'] = 'alpaca' if getattr(broker, '__class__', type(broker)).__name__ == 'AlpacaBroker' else 'paper'
+        state['broker_paper'] = getattr(broker, 'paper', True)
+        state['broker_connected'] = bool(getattr(broker, 'is_connected', lambda: False)())
+        state['portfolio'] = {
+            'paper': getattr(broker, 'paper', True),
+            'connected': bool(getattr(broker, 'is_connected', lambda: False)()),
+            'broker': state['broker'],
+        }
 
         # For brokers that can provide an authoritative all-time fill count
         # (e.g. AlpacaBroker queries the API), inject it directly so that

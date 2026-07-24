@@ -914,6 +914,7 @@
         </select>
       </label>
       <span id="halted-chip" class="halted-chip">HALTED</span>
+      <span id="broker-chip" class="regime-pill regime-UNKNOWN" title="Active broker">BROKER: UNKNOWN</span>
       <div id="conn-dot" class="conn-dot" title="WebSocket connection"></div>
     </div>
   </header>
@@ -1571,6 +1572,14 @@
       const pill = document.getElementById('regime-pill');
       pill.className = `regime-pill regime-${regime}`;
       pill.textContent = regime;
+    }
+
+    function updateBrokerChip(data) {
+      const chip = document.getElementById('broker-chip');
+      if (!chip) return;
+      const brokerMode = data?.portfolio?.paper === false ? 'ALPACA LIVE' : (data?.portfolio?.paper === true ? 'ALPACA PAPER' : (data?.broker || 'BROKER: UNKNOWN'));
+      chip.textContent = `BROKER: ${brokerMode}`;
+      chip.className = `regime-pill ${brokerMode.includes('ALPACA') ? 'regime-BULL' : 'regime-UNKNOWN'}`;
     }
 
     function renderSummary(containerId, items) {
