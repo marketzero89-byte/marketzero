@@ -1,6 +1,6 @@
 # MarketZero
 
-**AI Quant Trading System powered by Population-Based Training** | Version 1.0 | January 2026
+**AI Quant Trading System powered by Population-Based Training** | Completed Version 1.1 | Near-Term (Q3 2026)
 
 MarketZero is a production-grade, fully autonomous algorithmic trading platform that maintains a live population of heterogeneous reinforcement learning agents — **PPO**, **Dreamer**, and **WorldModel** — which continuously trade, compete, and evolve across equities, forex, commodities, and crypto markets in real time.
 
@@ -585,7 +585,7 @@ Full detail in `docs/22_Research_Roadmap.md`. Summary by version:
 
 **Q2 2026 — Production Hardening:** FastAPI WebSocket server; browser dashboard (Chart.js); Alpaca live broker integration; checkpoint system; MetricsLogger with TensorBoard; genealogy tracking; offline PPO pre-training; 22-document research platform.
 
-### v1.1 — Near-Term (Q3 2026)
+### v1.1 — Completed Near-Term (Q3 2026)
 
 **Execution:** limit order support, slippage model, transaction cost accounting, market-hours detection.
 

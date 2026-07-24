@@ -96,11 +96,15 @@ class OnlineEvaluator:
         """Compute fitness, update agent record and internal stats."""
         fc: FitnessComponents = compute_fitness(equity_curve, trade_pnls)
         agent.fitness = fc.composite
+        generation_return = 0.0
+        if equity_curve and equity_curve[0] != 0:
+            generation_return = equity_curve[-1] / equity_curve[0] - 1.0
         agent.metrics = {
             "sharpe":        round(fc.sharpe, 4),
             "calmar":        round(fc.calmar, 4),
             "sortino":       round(fc.sortino, 4),
             "annual_return": round(fc.annual_return, 4),
+            "generation_return": round(generation_return, 6),
             "max_drawdown":  round(fc.max_drawdown, 4),
             "win_rate":      round(fc.win_rate, 4),
             "profit_factor": round(fc.profit_factor, 4),

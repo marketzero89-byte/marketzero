@@ -9,6 +9,7 @@ from core.metrics_engine import (
     normalize_portfolio_state,
 )
 from core.pbt_engine import AgentRecord, GenerationResult
+from dashboard.state_store import LiveStateStore
 
 
 def test_normalize_portfolio_state_with_positions():
@@ -148,3 +149,65 @@ def test_build_dashboard_state_returns_expected_keys():
     assert state["market_intelligence"]["current_market_regime"] == "BULL"
     assert state["agent_leaderboard"][0]["agent_id"] == "agent1"
     assert state["n_trades"] == 0
+
+
+def test_live_state_store_provider_uses_equity_history_for_metrics():
+    store = LiveStateStore()
+    store.update({
+        "equity": 10500.0,
+        "equity_history": [10000.0, 10250.0, 10500.0],
+        "trade_pnls": [10.0, -2.0, 5.0],
+        "initial_equity": 10000.0,
+    })
+
+    provider = store.as_provider()
+    state = provider()
+
+    assert "performance" in state
+    assert "risk" in state
+    assert state["performance"]["total_return_pct"] == 5.0
+    assert state["risk"]["max_drawdown_pct"] >= 0.0
+
+
+def test_build_dashboard_state_exposes_legacy_leaderboard_alias():
+    agent = AgentRecord(
+        agent_id="agent1",
+        agent_type="ppo",
+        hyperparams={"learning_rate": 0.001},
+        fitness=0.5,
+        generation=1,
+        metrics={"sharpe": 1.0, "win_rate": 0.5},
+    )
+    result = GenerationResult(
+        generation=1,
+        elapsed_seconds=1.0,
+        population=[agent],
+        best_agent=agent,
+        mean_fitness=0.5,
+        std_fitness=0.0,
+        exploit_count=1,
+        explore_count=1,
+    )
+
+    state = build_dashboard_state(
+        result=result,
+        broker_state={
+            "cash": 10000.0,
+            "equity": 10050.0,
+            "daily_pnl": 50.0,
+            "total_return_pct": 0.5,
+            "positions": {},
+            "prices": {"AAPL": 150.0},
+            "n_trades": 0,
+        },
+        broker=type("B", (), {"orders": [], "trade_pnls": lambda self=None: [], "is_connected": lambda self=None: True})(),
+        equity_curve=[10000.0, 10050.0],
+        trade_pnls=[],
+        recent_trades=[],
+        prices={"AAPL": 150.0},
+        positions={},
+        regime="BULL",
+    )
+
+    assert "leaderboard" in state
+    assert state["leaderboard"] == state["agent_leaderboard"]

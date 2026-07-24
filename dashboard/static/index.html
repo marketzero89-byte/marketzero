@@ -1542,9 +1542,9 @@
 
     function updateStats(data) {
       const equity = data.equity || 0;
-      const ret = data.total_return_pct || 0;
-      const best = data.best_fitness || 0;
-      const mean = data.mean_fitness || 0;
+      const ret = data.cumulative_return_pct ?? data.total_return_pct ?? 0;
+      const best = data.cumulative_best_fitness ?? data.best_fitness ?? 0;
+      const mean = data.cumulative_mean_fitness ?? data.mean_fitness ?? 0;
       const dd = (data.drawdown || 0) * 100;
 
       setVal('stat-equity', '$' + equity.toLocaleString('en', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
@@ -1665,8 +1665,8 @@
       ]);
 
       renderSummary('fitness-summary', [
-        { label: 'Best Fitness', value: (data.fitness_distribution?.best ?? data.best_fitness ?? 0).toFixed(4) },
-        { label: 'Mean Fitness', value: (data.fitness_distribution?.average ?? data.mean_fitness ?? 0).toFixed(4) },
+        { label: 'Best Fitness', value: (data.cumulative_best_fitness ?? data.fitness_distribution?.best ?? data.best_fitness ?? 0).toFixed(4) },
+        { label: 'Mean Fitness', value: (data.cumulative_mean_fitness ?? data.fitness_distribution?.average ?? data.mean_fitness ?? 0).toFixed(4) },
         { label: 'Median Fitness', value: (data.fitness_distribution?.median ?? data.ai_evolution?.median_fitness ?? 0).toFixed(4) },
         { label: 'Fitness Std', value: (data.fitness_distribution?.std ?? data.ai_evolution?.fitness_stability ?? 0).toFixed(4) },
         { label: 'Improvement', value: (data.fitness_distribution?.improvement ?? 0).toFixed(4) },

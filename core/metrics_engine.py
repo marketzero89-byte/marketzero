@@ -142,11 +142,12 @@ def compute_performance_metrics(
     volatility = float(np.std(returns) * math.sqrt(252)) if len(returns) > 0 else 0.0
 
     total_return_pct = round((equity_curve[-1] / equity_curve[0] - 1.0) * 100.0, 2) if equity_curve[0] != 0 else 0.0
+    max_drawdown_pct = round(abs(max_dd) * 100.0, 2)
 
     return {
         "total_return_pct": total_return_pct,
         "annual_return_pct": round(ann * 100.0, 2),
-        "max_drawdown_pct": round(max_dd * 100.0, 2),
+        "max_drawdown_pct": max_drawdown_pct,
         "volatility": round(volatility, 4),
         "sharpe": round(sharpe, 4),
         "sortino": round(sortino, 4),
@@ -205,7 +206,7 @@ def compute_risk_metrics(
     performance = compute_performance_metrics(equity_curve, trade_pnls)
     max_dd = performance["max_drawdown_pct"] / 100.0
     downside = performance["sortino"]
-    recovery = round(_safe_float(performance["annual_return_pct"]) / max(abs(max_dd), 1e-6), 4) if max_dd < 0 else 0.0
+    recovery = round(_safe_float(performance["annual_return_pct"]) / max(max_dd, 1e-6), 4) if max_dd > 0 else 0.0
     returns = compute_returns(equity_curve)
     var = float(np.percentile(returns, 5)) if len(returns) > 0 else 0.0
     cvar_candidates = [r for r in returns if r <= var]
@@ -660,6 +661,7 @@ def build_dashboard_state(
     }
 
     return {
+        "leaderboard": agent_leaderboard,
         "portfolio_analytics": portfolio_analytics,
         "trade_analytics": trade_analytics,
         "ai_monitoring": ai_monitoring,

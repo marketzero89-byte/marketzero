@@ -7,6 +7,7 @@ Commands: serve, run, pbt-live, train, backtest, validate, fetch-data, status
 from __future__ import annotations
 
 import argparse
+import copy
 import json
 import logging
 import os
@@ -181,7 +182,7 @@ def _build_risk(args):
 # evaluate_agent: wraps broker + agents into PBT evaluate_fn
 # ---------------------------------------------------------------------------
 
-def _make_evaluate_fn(broker, feature_builder, risk_manager, aggregator, n_steps=200, use_mlp=False, heterogeneous=False):
+def _make_evaluate_fn(broker, feature_builder, risk_manager, aggregator, n_steps=200, use_mlp=False, heterogeneous=False, live_state_store=None):
     """Factory that returns an evaluate_fn(AgentRecord) -> AgentRecord."""
 
     from agents import build_agent
@@ -200,24 +201,24 @@ def _make_evaluate_fn(broker, feature_builder, risk_manager, aggregator, n_steps
     from brokers.alpaca_broker import BrokerDisconnectedError
     from core.evaluator import OnlineEvaluator
     from core.regime import RegimeDetector
+    from risk.risk_manager import RiskManager
 
     evaluator = OnlineEvaluator(log_path="logs/evaluator.jsonl")
-    regime_detector = RegimeDetector()
     _agent_instances = {}
 
-    def _submit_order(side, symbol, qty, price, equity):
-        positions_mv = broker_positions_market_value(broker)
-        allowed, reason = risk_manager.check_order(
+    def _submit_order(side, symbol, qty, price, equity, exec_broker, exec_risk_manager):
+        positions_mv = broker_positions_market_value(exec_broker)
+        allowed, reason = exec_risk_manager.check_order(
             symbol, side, qty, price, equity, positions_mv,
         )
         if not allowed:
             logger.debug("Order rejected: %s %s %s — %s", side, qty, symbol, reason)
             return False
         try:
-            result = broker.submit_market_order(symbol, side, qty)
+            result = exec_broker.submit_market_order(symbol, side, qty)
         except BrokerDisconnectedError:
             logger.critical("Broker disconnected — halting evaluation")
-            risk_manager._halt("Broker disconnected")
+            exec_risk_manager._halt("Broker disconnected")
             return False
         except Exception as exc:
             logger.error("Order failed %s %s %s: %s", side, qty, symbol, exc)
@@ -226,8 +227,8 @@ def _make_evaluate_fn(broker, feature_builder, risk_manager, aggregator, n_steps
             logger.error("Order not filled: %s %s %s → %s", side, qty, symbol, result)
             return False
         if side == "buy":
-            risk_manager.register_entry(symbol, price)
-        risk_manager.record_trade()
+            exec_risk_manager.register_entry(symbol, price)
+        exec_risk_manager.record_trade()
         return True
 
     def evaluate_fn(agent_record):
@@ -243,35 +244,46 @@ def _make_evaluate_fn(broker, feature_builder, risk_manager, aggregator, n_steps
             )
         agent_inst = _agent_instances[aid]
 
-        equity_start = broker_equity(broker)
+        try:
+            local_broker = copy.deepcopy(broker)
+        except Exception as exc:
+            logger.warning(
+                "Could not deepcopy broker for agent evaluation; using shared broker: %s",
+                exc,
+            )
+            local_broker = broker
+        local_risk_manager = RiskManager(config=copy.deepcopy(risk_manager.config))
+        local_regime_detector = RegimeDetector()
+
+        equity_start = broker_equity(local_broker)
         local_equity = [equity_start]
-        symbols = broker_symbols(broker)
+        symbols = broker_symbols(local_broker)
         symbol = symbols[0]
         _current_regime = "UNKNOWN"  # updated each step for state builder
 
         for _ in range(n_steps):
-            if not broker_is_market_open(broker):
+            if not broker_is_market_open(local_broker):
                 time.sleep(1.0)
                 continue
 
             try:
-                broker_step(broker)
+                broker_step(local_broker)
             except BrokerDisconnectedError as exc:
                 logger.critical("Broker step failed: %s", exc)
-                risk_manager._halt(str(exc))
+                local_risk_manager._halt(str(exc))
                 break
 
-            prices = broker_price_history(broker, symbol)
+            prices = broker_price_history(local_broker, symbol)
             if len(prices) < 5:
                 continue
 
-            pos_qty = broker_position_qty(broker, symbol)
-            equity = broker_equity(broker, equity_start)
-            cash = broker_cash(broker)
-            price = broker_current_price(broker, symbol, prices[-1])
+            pos_qty = broker_position_qty(local_broker, symbol)
+            equity = broker_equity(local_broker, equity_start)
+            cash = broker_cash(local_broker)
+            price = broker_current_price(local_broker, symbol, prices[-1])
 
             # Detect regime before building state so one-hot is populated (R-014/R-015)
-            _current_regime = regime_detector.detect(prices).value
+            _current_regime = local_regime_detector.detect(prices).value
             state = feature_builder.build(
                 closes=prices,
                 position=pos_qty / 100.0,
@@ -280,31 +292,90 @@ def _make_evaluate_fn(broker, feature_builder, risk_manager, aggregator, n_steps
             )
 
             action, log_prob = agent_inst.act(state)
-            risk_manager.update(equity, broker_positions_market_value(broker))
+            local_risk_manager.update(equity, broker_positions_market_value(local_broker))
 
-            if risk_manager.is_halted:
+            if local_risk_manager.is_halted:
                 break
 
             # Stop-loss / take-profit — only check when we actually hold a position
             if pos_qty > 0:
-                should_exit, exit_reason = risk_manager.check_stop_take(symbol, price)
+                should_exit, exit_reason = local_risk_manager.check_stop_take(symbol, price)
                 if should_exit:
-                    sold = _submit_order("sell", symbol, int(pos_qty), price, equity)
+                    sold = _submit_order(
+                        "sell", symbol, int(pos_qty), price, equity,
+                        local_broker, local_risk_manager,
+                    )
                     if sold:
-                        risk_manager.deregister_entry(symbol)
+                        local_risk_manager.deregister_entry(symbol)
+                        # push a lightweight live-state update so the dashboard reflects the new trade
+                        try:
+                            if live_state_store is not None:
+                                ps = local_broker.portfolio_state() if hasattr(local_broker, 'portfolio_state') else {}
+                                live_state_store.update({
+                                    'generation': getattr(agent_record, 'generation', None),
+                                    **ps,
+                                    'n_trades': local_broker.per_generation_trades() if hasattr(local_broker, 'per_generation_trades') else len(getattr(local_broker, 'trades', [])),
+                                    'recent_trades': local_broker.recent_trades(12) if hasattr(local_broker, 'recent_trades') else [],
+                                    'prices': getattr(local_broker, '_current_prices', {}),
+                                    'positions': ps.get('positions', {}),
+                                    'initial_equity': getattr(local_broker, 'initial_equity', getattr(local_broker, 'initial_cash', None)),
+                                    'equity_curve': getattr(local_broker, 'equity_curve', []),
+                                    'trade_pnls': local_broker.trade_pnls() if hasattr(local_broker, 'trade_pnls') else [],
+                                })
+                        except Exception:
+                            pass
             else:
                 # No position held — ensure stale entry price is cleared
-                risk_manager.deregister_entry(symbol)
+                local_risk_manager.deregister_entry(symbol)
 
             qty = max(1, int(equity * 0.05 / max(price, 1)))
             if action == 1:
-                _submit_order("buy", symbol, qty, price, equity)
+                bought = _submit_order(
+                    "buy", symbol, qty, price, equity,
+                    local_broker, local_risk_manager,
+                )
+                if bought:
+                    try:
+                        if live_state_store is not None:
+                            ps = local_broker.portfolio_state() if hasattr(local_broker, 'portfolio_state') else {}
+                            live_state_store.update({
+                                'generation': getattr(agent_record, 'generation', None),
+                                **ps,
+                                'n_trades': local_broker.per_generation_trades() if hasattr(local_broker, 'per_generation_trades') else len(getattr(local_broker, 'trades', [])),
+                                'recent_trades': local_broker.recent_trades(12) if hasattr(local_broker, 'recent_trades') else [],
+                                'prices': getattr(local_broker, '_current_prices', {}),
+                                'positions': ps.get('positions', {}),
+                                'initial_equity': getattr(local_broker, 'initial_equity', getattr(local_broker, 'initial_cash', None)),
+                                'equity_curve': getattr(local_broker, 'equity_curve', []),
+                                'trade_pnls': local_broker.trade_pnls() if hasattr(local_broker, 'trade_pnls') else [],
+                            })
+                    except Exception:
+                        pass
             elif action == 2 and pos_qty > 0:
-                sold = _submit_order("sell", symbol, min(qty, int(pos_qty)), price, equity)
+                sold = _submit_order(
+                    "sell", symbol, min(qty, int(pos_qty)), price, equity,
+                    local_broker, local_risk_manager,
+                )
                 if sold:
-                    risk_manager.deregister_entry(symbol)
+                    local_risk_manager.deregister_entry(symbol)
+                    try:
+                        if live_state_store is not None:
+                            ps = local_broker.portfolio_state() if hasattr(local_broker, 'portfolio_state') else {}
+                            live_state_store.update({
+                                'generation': getattr(agent_record, 'generation', None),
+                                **ps,
+                                'n_trades': local_broker.per_generation_trades() if hasattr(local_broker, 'per_generation_trades') else len(getattr(local_broker, 'trades', [])),
+                                'recent_trades': local_broker.recent_trades(12) if hasattr(local_broker, 'recent_trades') else [],
+                                'prices': getattr(local_broker, '_current_prices', {}),
+                                'positions': ps.get('positions', {}),
+                                'initial_equity': getattr(local_broker, 'initial_equity', getattr(local_broker, 'initial_cash', None)),
+                                'equity_curve': getattr(local_broker, 'equity_curve', []),
+                                'trade_pnls': local_broker.trade_pnls() if hasattr(local_broker, 'trade_pnls') else [],
+                            })
+                    except Exception:
+                        pass
 
-            new_equity = broker_equity(broker, equity_start)
+            new_equity = broker_equity(local_broker, equity_start)
             prev_equity = local_equity[-1]
             raw_return = (new_equity - prev_equity) / max(prev_equity, 1)
             drawdown = 0.0
@@ -318,12 +389,12 @@ def _make_evaluate_fn(broker, feature_builder, risk_manager, aggregator, n_steps
                 reward -= 0.0005
             local_equity.append(new_equity)
 
-            next_prices = broker_price_history(broker, symbol)
+            next_prices = broker_price_history(local_broker, symbol)
             if len(next_prices) >= 5 and hasattr(agent_inst, "store"):
-                next_pos = broker_position_qty(broker, symbol)
-                next_cash = broker_cash(broker)
-                next_eq = broker_equity(broker, equity_start)
-                next_regime = regime_detector.detect(next_prices).value
+                next_pos = broker_position_qty(local_broker, symbol)
+                next_cash = broker_cash(local_broker)
+                next_eq = broker_equity(local_broker, equity_start)
+                next_regime = local_regime_detector.detect(next_prices).value
                 next_state = feature_builder.build(
                     closes=next_prices,
                     position=next_pos / 100.0,
@@ -345,13 +416,13 @@ def _make_evaluate_fn(broker, feature_builder, risk_manager, aggregator, n_steps
         if hasattr(agent_inst, "update"):
             agent_inst.update()
 
-        regime_prices = broker_price_history(broker, symbol) or [100.0]
-        regime = regime_detector.detect(regime_prices)
+        regime_prices = broker_price_history(local_broker, symbol) or [100.0]
+        regime = local_regime_detector.detect(regime_prices)
 
         return evaluator.evaluate_agent(
             agent_record,
             equity_curve=local_equity,
-            trade_pnls=broker.trade_pnls(),
+            trade_pnls=local_broker.trade_pnls(),
             regime=regime.value,
         )
 
@@ -418,10 +489,20 @@ def cmd_run(args):
         n_steps=args.steps_per_gen,
         use_mlp=args.use_mlp,
         heterogeneous=args.heterogeneous,
+        live_state_store=store,
     )
 
     def on_generation(result):
         best = result.best_agent
+
+        # Apply the winning agent's realized generation return to the persistent
+        # master account. Agent evaluation remains isolated, while account equity
+        # compounds across generations and includes both gains and losses.
+        if broker.__class__.__name__ == "PaperBroker":
+            generation_return = float((best.metrics or {}).get("generation_return", 0.0))
+            master_equity = broker._compute_equity()
+            broker.cash += master_equity * generation_return
+            broker.equity_curve.append(round(broker._compute_equity(), 2))
 
         portfolio = broker.portfolio_state() if hasattr(broker, 'portfolio_state') else {}
         equity = portfolio.get('equity', broker.equity_curve[-1] if broker.equity_curve else 0)
@@ -455,6 +536,9 @@ def cmd_run(args):
         # cross-session-accurate value instead.
         if hasattr(broker, 'total_filled_orders'):
             state['cumulative_trades'] = broker.total_filled_orders()
+        state['initial_equity'] = getattr(
+            broker, 'initial_equity', getattr(broker, 'initial_cash', equity)
+        ) or equity
 
         store.update(state)
 
@@ -481,10 +565,11 @@ def cmd_run(args):
 
     engine.add_callback(on_generation)
 
-    # Reset daily P&L, equity curve, and GBM prices at the start of each generation
+    # Reset daily P&L and GBM prices at the start of each generation
+    # NOTE: Do NOT reset equity_curve — we want cumulative equity growth across generations
     def _generation_start_hook():
         broker.reset_daily_pnl()
-        broker.reset_equity_curve()
+        # broker.reset_equity_curve()  # DISABLED: preserve equity history for cumulative growth
         if hasattr(broker, 'mark_generation_start'):
             broker.mark_generation_start()
         if hasattr(broker, 'reset_prices'):
@@ -858,7 +943,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_run.add_argument("--host",            default="0.0.0.0")
     p_run.add_argument("--port",            type=int,   default=8000)
     p_run.add_argument("--population",      type=int,   default=12)
-    p_run.add_argument("--generations",     type=int,   default=50)
+    p_run.add_argument("--generations",     type=int,   default=100)
     p_run.add_argument("--steps-per-gen",   type=int,   default=200, dest="steps_per_gen")
     p_run.add_argument("--broker",          default="paper", choices=["paper", "alpaca", "coinglass"])
     p_run.add_argument("--live",            action="store_true", help="Use Alpaca live (not paper)")
@@ -878,16 +963,16 @@ def build_parser() -> argparse.ArgumentParser:
     p_run.add_argument("--tensorboard",     action="store_true")
     p_run.add_argument("--checkpoint-dir",  default="checkpoints", dest="checkpoint_dir")
     p_run.add_argument("--daily-loss-limit",type=float, default=0.05, dest="daily_loss_limit")
-    p_run.add_argument("--max-drawdown",    type=float, default=0.15, dest="max_drawdown")
+    p_run.add_argument("--max-drawdown",    type=float, default=0.10, dest="max_drawdown")
     p_run.add_argument("--stop-loss",       type=float, default=0.03, dest="stop_loss")
-    p_run.add_argument("--take-profit",     type=float, default=0.08, dest="take_profit")
+    p_run.add_argument("--take-profit",     type=float, default=0.09, dest="take_profit")
     p_run.add_argument("--resume-from",     default="", dest="resume_from",
                         help="Resume from a checkpoint JSON (e.g. checkpoints/gen_0007.json)")
 
     # ---- pbt-live ----
     p_live = sub.add_parser("pbt-live", help="Run PBT live trading loop")
     p_live.add_argument("--population",     type=int,   default=12)
-    p_live.add_argument("--generations",    type=int,   default=50)
+    p_live.add_argument("--generations",    type=int,   default=100)
     p_live.add_argument("--steps-per-gen",  type=int,   default=200, dest="steps_per_gen")
     p_live.add_argument("--broker",         default="paper", choices=["paper", "alpaca", "coinglass"])
     p_live.add_argument("--live",           action="store_true", help="Use Alpaca live (not paper)")
@@ -907,9 +992,9 @@ def build_parser() -> argparse.ArgumentParser:
     p_live.add_argument("--tensorboard",    action="store_true")
     p_live.add_argument("--checkpoint-dir", default="checkpoints", dest="checkpoint_dir")
     p_live.add_argument("--daily-loss-limit",  type=float, default=0.05, dest="daily_loss_limit")
-    p_live.add_argument("--max-drawdown",      type=float, default=0.15, dest="max_drawdown")
+    p_live.add_argument("--max-drawdown",      type=float, default=0.10, dest="max_drawdown")
     p_live.add_argument("--stop-loss",         type=float, default=0.03, dest="stop_loss")
-    p_live.add_argument("--take-profit",        type=float, default=0.08, dest="take_profit")
+    p_live.add_argument("--take-profit",        type=float, default=0.09, dest="take_profit")
     p_live.add_argument("--resume-from",        default="", dest="resume_from",
                         help="Resume from a checkpoint JSON (e.g. checkpoints/gen_0007.json)")
 

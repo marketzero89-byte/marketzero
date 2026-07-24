@@ -68,11 +68,13 @@ class AlpacaBroker:
         self.equity_curve: List[float] = []
         self.trades: List[Dict] = []
         self.cash: float = 0.0
+        self.initial_equity: float = 0.0
         self.positions: Dict[str, AlpacaPosition] = {
             s: AlpacaPosition(symbol=s) for s in self.symbols
         }
         self._current_prices: Dict[str, float] = {}
         self._price_history: Dict[str, List[float]] = {s: [] for s in self.symbols}
+        self._session_start_equity: float = self.initial_equity
         self._trades_at_generation_start: int = 0  # for per-gen trade counting
         self._generation_start_time: float = time.time()  # timestamp of current gen start
         self._connect()
@@ -94,6 +96,8 @@ class AlpacaBroker:
             account = self._trading.get_account()
             equity = float(account.equity)
             self.cash = float(account.cash)
+            self.initial_equity = equity
+            self._session_start_equity = equity
             self.equity_curve.append(equity)
             mode = "PAPER" if self.paper else "LIVE"
             logger.info("Connected to Alpaca %s | equity=%.2f", mode, equity)
@@ -352,7 +356,6 @@ class AlpacaBroker:
             account = self._trading.get_account()
             positions = self._trading.get_all_positions()
             equity = float(account.equity)
-            last_equity = float(account.last_equity)
             self.cash = float(account.cash)
             pos_map = {}
             for p in positions:
@@ -370,12 +373,14 @@ class AlpacaBroker:
                     "unrealised_pnl": round(float(p.unrealized_pl), 2),
                     "realised_pnl":   round(float(getattr(p, 'realized_pl', 0) or 0), 2),
                 }
+            daily_pnl = equity - self._session_start_equity if self._session_start_equity > 0 else 0.0
             return {
                 "cash":             round(self.cash, 2),
                 "equity":           round(equity, 2),
                 "buying_power":     round(float(account.buying_power), 2),
-                "total_return_pct": round((equity / last_equity - 1) * 100, 4) if last_equity else 0.0,
-                "daily_pnl":        round(equity - last_equity, 2),
+                "total_return_pct": round((equity / self.initial_equity - 1) * 100, 4) if self.initial_equity else 0.0,
+                "daily_pnl":        round(daily_pnl, 2),
+                "initial_equity":   round(self.initial_equity, 2),
                 "positions":        pos_map,
                 "prices":           {k: round(v, 4) for k, v in self._current_prices.items()},
                 "n_trades":         len(self.trades),
@@ -467,6 +472,30 @@ class AlpacaBroker:
             return bool(clock.is_open)
         except Exception:
             return False
+
+    def reset_daily_pnl(self) -> None:
+        """Rebase the session/loop daily P&L snapshot to the current account equity."""
+        if self.is_connected():
+            try:
+                account = self._trading.get_account()
+                self._session_start_equity = float(account.equity)
+            except Exception:
+                self._session_start_equity = self.initial_equity or self.cash
+        else:
+            self._session_start_equity = self.initial_equity or self.cash
+
+    def reset_equity_curve(self) -> None:
+        """Reset the running equity curve to the current account equity."""
+        current_equity = self.initial_equity or self.cash
+        if self.is_connected():
+            try:
+                account = self._trading.get_account()
+                current_equity = float(account.equity)
+            except Exception:
+                pass
+        self.equity_curve = [current_equity]
+        self.initial_equity = current_equity
+        self._session_start_equity = current_equity
 
     def mark_generation_start(self) -> None:
         """Record generation boundary for both local and API-based trade counting."""

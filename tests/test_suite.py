@@ -119,6 +119,19 @@ class TestPBTEngine:
         ckpt_files = list(tmp_path.glob("gen_*.json"))
         assert len(ckpt_files) == 1
 
+    def test_paper_broker_deepcopy_isolated(self):
+        from brokers.paper_broker import PaperBroker, GBMPriceSimulator
+        import copy
+
+        sim = GBMPriceSimulator(symbols=["AAPL"], initial_prices={"AAPL": 185.0}, seed=42)
+        broker = PaperBroker(initial_cash=100_000, symbols=["AAPL"], simulator=sim)
+        broker2 = copy.deepcopy(broker)
+        broker.submit_market_order("AAPL", "buy", 1)
+
+        assert len(broker.trades) == 1
+        assert len(broker2.trades) == 0
+        assert broker.cash != broker2.cash
+
     def test_leaderboard_sorted(self):
         from core.pbt_engine import PBTEngine
         engine = PBTEngine(population_size=6)
@@ -607,6 +620,19 @@ class TestAlpacaBrokerStubMode:
         # alpaca-py may or may not be installed; either path must not crash
         broker = AlpacaBroker(api_key="", api_secret="", paper=True)
         assert broker is not None
+
+    def test_alpaca_broker_matches_paper_reset_contract(self):
+        from brokers.alpaca_broker import AlpacaBroker
+        broker = AlpacaBroker(api_key="", api_secret="", paper=True)
+
+        assert hasattr(broker, "reset_daily_pnl")
+        assert hasattr(broker, "reset_equity_curve")
+        assert hasattr(broker, "mark_generation_start")
+
+        broker.reset_daily_pnl()
+        broker.reset_equity_curve()
+
+        assert broker.initial_equity == broker.equity_curve[0]
 
     def test_stub_market_order_returns_dict(self):
         from brokers.alpaca_broker import AlpacaBroker
