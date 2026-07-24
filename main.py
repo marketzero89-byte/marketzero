@@ -456,6 +456,7 @@ def cmd_run(args):
     import uvicorn
 
     logger.info("=== PBT RUN (engine + dashboard) ===")
+    logger.info("Broker override env: %s", os.getenv("PBT_BROKER", "<unset>"))
     logger.info("Population: %d | Generations: %d | Broker: %s",
                 args.population, args.generations, args.broker)
     logger.info("Dashboard: http://%s:%d", args.host if args.host != '0.0.0.0' else 'localhost', args.port)

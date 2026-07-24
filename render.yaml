@@ -9,7 +9,7 @@ services:
     buildCommand: pip install -r requirements-render.txt
 
     # Start command — Render injects PORT automatically
-    startCommand: python main.py run --host 0.0.0.0 --port $PORT --broker alpaca --generations 100 --population 12 --steps-per-gen 200 --lookback 50
+    startCommand: python -c "import os; os.environ['PBT_BROKER']='alpaca'; import subprocess, sys; subprocess.run([sys.executable, 'main.py', 'run', '--host', '0.0.0.0', '--port', '$PORT', '--broker', 'alpaca', '--generations', '100', '--population', '12', '--steps-per-gen', '200', '--lookback', '50'], check=True)"
 
     healthCheckPath: /api/health
 
