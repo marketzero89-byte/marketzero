@@ -8,8 +8,8 @@ services:
     # Use slim requirements to avoid OOM on free tier
     buildCommand: pip install -r requirements-render.txt
 
-    # Start command — Render injects PORT automatically
-    startCommand: python -c "import os; os.environ['PBT_BROKER']='alpaca'; import subprocess, sys; subprocess.run([sys.executable, 'main.py', 'run', '--host', '0.0.0.0', '--port', '$PORT', '--broker', 'alpaca', '--generations', '100', '--population', '12', '--steps-per-gen', '200', '--lookback', '50'], check=True)"
+    # Start command — Render injects PORT automatically and the app must bind to it
+    startCommand: python main.py run --broker paper --generations 100 --population 12 --steps-per-gen 200 --lookback 50 --port ${PORT:-8000}
 
     healthCheckPath: /api/health
 
