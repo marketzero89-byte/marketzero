@@ -332,8 +332,8 @@ def _mock_provider() -> Dict:
         "halted":        False,
         "n_trades":      t * 3,
         "portfolio": {
-            "paper": true,
-            "connected": true,
+            "paper": True,
+            "connected": True,
             "broker": "MockBroker",
         },
         "leaderboard": [

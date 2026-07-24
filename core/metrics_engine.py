@@ -54,6 +54,18 @@ def _percent(value: float) -> float:
     return round(value * 100.0, 2)
 
 
+def _position_field(pos: Any, names: List[str], default: Any = 0.0) -> Any:
+    if isinstance(pos, dict):
+        for name in names:
+            if name in pos:
+                return pos[name]
+        return default
+    for name in names:
+        if hasattr(pos, name):
+            return getattr(pos, name)
+    return default
+
+
 def normalize_portfolio_state(portfolio: Dict[str, Any]) -> Dict[str, Any]:
     cash = _safe_float(portfolio.get("cash"))
     equity = _safe_float(portfolio.get("equity"))
@@ -61,24 +73,45 @@ def normalize_portfolio_state(portfolio: Dict[str, Any]) -> Dict[str, Any]:
     buying_power = _safe_float(buying_power, cash)
     total_return = _safe_float(portfolio.get("total_return_pct"))
     daily_pnl = _safe_float(portfolio.get("daily_pnl"))
-    unrealized = 0.0
-    realized = 0.0
+    unrealized = _safe_float(portfolio.get("unrealized_pnl"))
+    realized = _safe_float(portfolio.get("realized_pnl"))
     position_value = 0.0
     positions = []
-    for symbol, pos in (portfolio.get("positions") or {}).items():
-        qty = _safe_float(pos.get("qty"))
-        current_price = _safe_float(pos.get("current_price"))
-        unreal = _safe_float(pos.get("unrealised_pnl"))
-        real = _safe_float(pos.get("realised_pnl"))
-        value = qty * current_price
+
+    raw_positions = portfolio.get("positions") or {}
+    if isinstance(raw_positions, list):
+        raw_positions = [(None, pos) for pos in raw_positions]
+    elif isinstance(raw_positions, dict):
+        raw_positions = [(symbol, pos) for symbol, pos in raw_positions.items()]
+    else:
+        raw_positions = []
+
+    for symbol, pos in raw_positions:
+        qty = _safe_float(_position_field(pos, ["qty", "quantity", "size"]))
+        current_price = _safe_float(
+            _position_field(pos, ["current_price", "price", "mark_price", "last_price"])
+        )
+        entry_price = _safe_float(
+            _position_field(pos, ["entry_price", "avg_cost", "avg_price", "avg_entry_price", "cost_basis"])
+        )
+        unreal = _safe_float(
+            _position_field(pos, ["unrealized_pnl", "unrealised_pnl", "unrealized_pl", "unrealised_pl"])
+        )
+        real = _safe_float(
+            _position_field(pos, ["realized_pnl", "realised_pnl", "realized_pl", "realised_pl"])
+        )
+        raw_pos_value = _position_field(pos, ["position_value", "market_value", "value"], None)
+        value = _safe_float(raw_pos_value, qty * current_price)
+
         unrealized += unreal
         realized += real
         position_value += abs(value)
+
         positions.append(
             {
-                "symbol": symbol,
+                "symbol": symbol or _position_field(pos, ["symbol", "ticker", "instrument"]),
                 "qty": qty,
-                "entry_price": _safe_float(pos.get("avg_cost")),
+                "entry_price": entry_price,
                 "current_price": current_price,
                 "unrealized_pnl": unreal,
                 "realized_pnl": real,

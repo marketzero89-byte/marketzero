@@ -531,7 +531,15 @@ def cmd_run(args):
             regime=best.metrics.get('regime', 'UNKNOWN'),
         )
         state['broker'] = getattr(broker, '__class__', type(broker)).__name__
-        state['broker_mode'] = 'alpaca' if getattr(broker, '__class__', type(broker)).__name__ == 'AlpacaBroker' else 'paper'
+        broker_name = state['broker']
+        if broker_name == 'AlpacaBroker':
+            state['broker_mode'] = 'alpaca'
+        elif broker_name == 'MockBroker':
+            state['broker_mode'] = 'mock'
+        elif broker_name == 'PaperBroker':
+            state['broker_mode'] = 'paper'
+        else:
+            state['broker_mode'] = getattr(broker, 'broker_mode', 'unknown')
         state['broker_paper'] = getattr(broker, 'paper', True)
         state['broker_connected'] = bool(getattr(broker, 'is_connected', lambda: False)())
         state['portfolio'] = {
