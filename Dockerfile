@@ -26,8 +26,8 @@ RUN pip install --no-cache-dir \
     httpx==0.27.2 \
     prometheus-client==0.21.0
 
-# Optional: install alpaca-py if ALPACA_INTEGRATION=1
-ARG ALPACA_INTEGRATION=0
+# Install Alpaca integration by default for deployments that use the Alpaca broker
+ARG ALPACA_INTEGRATION=1
 RUN if [ "$ALPACA_INTEGRATION" = "1" ]; then pip install --no-cache-dir alpaca-py==0.34.0; fi
 
 # Optional: install ML tracking
