@@ -944,7 +944,10 @@ def build_parser() -> argparse.ArgumentParser:
     sub = parser.add_subparsers(dest="command", required=True)
 
     env_broker = os.getenv("PBT_BROKER", "").strip().lower()
-    default_broker = env_broker if env_broker in {"paper", "alpaca", "coinglass"} else "paper"
+    if os.getenv("RENDER") == "true" or os.getenv("RENDER_SERVICE_NAME"):
+        default_broker = "alpaca"
+    else:
+        default_broker = env_broker if env_broker in {"paper", "alpaca", "coinglass"} else "paper"
 
     # ---- serve ----
     p_serve = sub.add_parser("serve", help="Start the dashboard WebSocket server (mock data)")

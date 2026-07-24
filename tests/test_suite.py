@@ -27,6 +27,16 @@ def test_build_parser_uses_env_broker_override(monkeypatch):
     assert args.broker == "alpaca"
 
 
+def test_render_launch_forces_alpaca_broker(monkeypatch):
+    from main import build_parser
+
+    monkeypatch.setenv("PBT_BROKER", "paper")
+    monkeypatch.setenv("RENDER", "true")
+    args = build_parser().parse_args(["run"])
+
+    assert args.broker == "alpaca"
+
+
 # ============================================================
 # 1. FITNESS FUNCTION
 # ============================================================
