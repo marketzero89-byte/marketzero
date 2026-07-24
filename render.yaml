@@ -17,7 +17,7 @@ services:
       - key: PYTHONUNBUFFERED
         value: "1"
       - key: PBT_BROKER
-        value: paper
+        value: alpaca
       - key: PBT_GENERATIONS
         value: "100"
       - key: PBT_POPULATION
