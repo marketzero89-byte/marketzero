@@ -27,8 +27,6 @@ services:
         value: "200"
       - key: PBT_LOOKBACK
         value: "50"
-      - key: INSTALL_ALPACA
-        value: "1"
       # Set PBT_CORS_ORIGINS in Render dashboard → Environment to your deploy URL
       # e.g.  https://marketzero-pbt.onrender.com
       # Leave blank to allow all origins (default).
