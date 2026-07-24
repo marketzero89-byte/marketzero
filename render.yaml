@@ -9,7 +9,7 @@ services:
     buildCommand: pip install -r requirements-render.txt
 
     # Start command — Render injects PORT automatically and the app must bind to it
-    startCommand: python main.py run --broker paper --generations 100 --population 12 --steps-per-gen 200 --lookback 50 --port ${PORT:-8000}
+    startCommand: python main.py run --broker alpaca --generations 100 --population 12 --steps-per-gen 200 --lookback 50 --port ${PORT:-8000}
 
     healthCheckPath: /api/health
 
@@ -17,7 +17,7 @@ services:
       - key: PYTHONUNBUFFERED
         value: "1"
       - key: PBT_BROKER
-        value: paper
+        value: alpaca
       - key: PBT_GENERATIONS
         value: "100"
       - key: PBT_POPULATION
