@@ -933,6 +933,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
+    env_broker = os.getenv("PBT_BROKER", "").strip().lower()
+    default_broker = env_broker if env_broker in {"paper", "alpaca", "coinglass"} else "paper"
+
     # ---- serve ----
     p_serve = sub.add_parser("serve", help="Start the dashboard WebSocket server (mock data)")
     p_serve.add_argument("--host", default="0.0.0.0")
@@ -945,7 +948,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_run.add_argument("--population",      type=int,   default=12)
     p_run.add_argument("--generations",     type=int,   default=100)
     p_run.add_argument("--steps-per-gen",   type=int,   default=200, dest="steps_per_gen")
-    p_run.add_argument("--broker",          default="paper", choices=["paper", "alpaca", "coinglass"])
+    p_run.add_argument("--broker",          default=default_broker, choices=["paper", "alpaca", "coinglass"])
     p_run.add_argument("--live",            action="store_true", help="Use Alpaca live (not paper)")
     p_run.add_argument("--force-live",      action="store_true", dest="force_live",
                         help="Bypass live-trading validation gate (use with caution)")
@@ -974,7 +977,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_live.add_argument("--population",     type=int,   default=12)
     p_live.add_argument("--generations",    type=int,   default=100)
     p_live.add_argument("--steps-per-gen",  type=int,   default=200, dest="steps_per_gen")
-    p_live.add_argument("--broker",         default="paper", choices=["paper", "alpaca", "coinglass"])
+    p_live.add_argument("--broker",         default=default_broker, choices=["paper", "alpaca", "coinglass"])
     p_live.add_argument("--live",           action="store_true", help="Use Alpaca live (not paper)")
     p_live.add_argument("--force-live",     action="store_true", dest="force_live",
                         help="Bypass live-trading validation gate (use with caution)")

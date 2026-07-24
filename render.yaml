@@ -9,7 +9,7 @@ services:
     buildCommand: pip install -r requirements-render.txt
 
     # Start command — Render injects PORT automatically
-    startCommand: python main.py run --host 0.0.0.0 --port $PORT --broker paper --generations 100 --population 12 --steps-per-gen 200 --lookback 50
+    startCommand: python main.py run --host 0.0.0.0 --port $PORT --broker alpaca --generations 100 --population 12 --steps-per-gen 200 --lookback 50
 
     healthCheckPath: /api/health
 

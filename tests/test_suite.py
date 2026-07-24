@@ -18,6 +18,15 @@ import numpy as np
 import pytest
 
 
+def test_build_parser_uses_env_broker_override(monkeypatch):
+    from main import build_parser
+
+    monkeypatch.setenv("PBT_BROKER", "alpaca")
+    args = build_parser().parse_args(["run"])
+
+    assert args.broker == "alpaca"
+
+
 # ============================================================
 # 1. FITNESS FUNCTION
 # ============================================================
